@@ -29,9 +29,9 @@ class Config:
     DEFAULT_NGINX_PORT = "80"
     DEFAULT_NGINX_HTTPS_PORT = "443"
 
-    KOBO_DOCKER_BRANCH = 'kobo-install-two-databases'
-    KOBO_INSTALL_BRANCH = 'two-databases'
-    KOBO_INSTALL_VERSION = '2.0.0'
+    KOBO_DOCKER_BRANCH = 'two-databases-secured-backend'
+    KOBO_INSTALL_BRANCH = 'secured-backend'
+    KOBO_INSTALL_VERSION = '2.1.0'
 
     # Maybe overkill. Use this class as a singleton to get the same configuration
     # for each instantiation.
@@ -89,6 +89,25 @@ class Config:
             "..",
             Config.LETSENCRYPT_DOCKER_DIR
         )))
+
+    def get_prefix(self, role):
+        roles = {
+            'frontend': 'kobofe',
+            'backend': 'kobobe',
+            'maintenance': 'kobomaintenance'
+        }
+
+        try:
+            prefix_ = roles[role]
+        except KeyError:
+            CLI.colored_print("Invalid composer file", CLI.COLOR_ERROR)
+            sys.exit(-1)
+
+        if not self.__config.get("docker_prefix"):
+            return prefix_
+
+        return "{}-{}".format(self.__config.get("docker_prefix"),
+                              prefix_)
 
     @property
     def master_backend(self):
@@ -223,6 +242,8 @@ class Config:
                         self.__questions_roles()
                         if self.frontend:
                             self.__questions_private_routes()
+                    else:
+                        self.__reset_private_dns_settings()
 
                 if self.frontend_questions:
                     self.__questions_public_routes()
@@ -483,7 +504,7 @@ class Config:
             "super_user_password": Config.generate_password(),
             "postgres_replication_password": Config.generate_password(),
             "use_aws": Config.FALSE,
-            "use_private_dns": Config.FALSE,
+            "use_private_dns": Config.TRUE,
             "master_backend_ip": primary_ip,
             "local_interface_ip": primary_ip,
             "multi": Config.FALSE,
@@ -739,13 +760,13 @@ class Config:
                         self.__config.get("kc_path") != self.__config.get("kc_path")):
 
                     self.__config["kc_dev_build_id"] = "{prefix}{timestamp}".format(
-                        prefix="{}.".format(self.__config.get("docker_prefix")) if self.__config.get("docker_prefix") else "",
+                        prefix=self.get_prefix("frontend"),
                         timestamp=str(int(time.time()))
                     )
                 if (self.__config.get("kpi_dev_build_id", "") == "" or
                         self.__config.get("kpi_path") != self.__config.get("kpi_path")):
                     self.__config["kpi_dev_build_id"] = "{prefix}{timestamp}".format(
-                        prefix="{}.".format(self.__config.get("docker_prefix")) if self.__config.get("docker_prefix") else "",
+                        prefix=self.get_prefix("frontend"),
                         timestamp=str(int(time.time()))
                     )
                 if self.dev_mode:
@@ -816,7 +837,7 @@ class Config:
         if self.local_install:
             # Reset previous choices, in case server role is not the same.
             self.__config["multi"] = Config.FALSE
-            self.__config["use_private_dns"] = Config.FALSE
+            self.__config["use_private_dns"] = Config.TRUE
             self.__config["https"] = Config.FALSE
             self.__config["proxy"] = Config.FALSE
             self.__config["nginx_proxy_port"] = Config.DEFAULT_NGINX_PORT
@@ -956,6 +977,16 @@ class Config:
         """
         Customize services ports
         """
+        def reset_ports():
+            self.__config["postgresql_port"] = "5432"
+            self.__config["mongo_port"] = "27017"
+            self.__config["redis_main_port"] = "6379"
+            self.__config["redis_cache_port"] = "6380"
+
+        if not (self.multi_servers or self.dev_mode):
+            reset_ports()
+            return
+
         CLI.colored_print("Do you want to customize service ports?", CLI.COLOR_SUCCESS)
         CLI.colored_print("\t1) Yes")
         CLI.colored_print("\t2) No")
@@ -976,10 +1007,7 @@ class Config:
             self.__config["redis_cache_port"] = CLI.get_response(r"~^\d+$",
                                                                  self.__config.get("redis_cache_port", "6380"))
         else:
-            self.__config["postgresql_port"] = "5432"
-            self.__config["mongo_port"] = "27017"
-            self.__config["redis_main_port"] = "6379"
-            self.__config["redis_cache_port"] = "6380"
+            reset_ports()
 
     def __questions_private_routes(self):
         """
@@ -1241,6 +1269,9 @@ class Config:
         self.__config["debug"] = Config.FALSE
         if reset_nginx_port:
             self.__config["exposed_nginx_docker_port"] = Config.DEFAULT_NGINX_PORT
+
+    def __reset_private_dns_settings(self):
+        self.__config["use_private_dns"] = Config.TRUE
 
     def __validate_installation(self):
         """

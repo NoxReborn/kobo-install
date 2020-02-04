@@ -201,7 +201,13 @@ class Template:
             "MAINTENANCE_DATE_ISO": config.get("maintenance_date_iso", ""),
             "MAINTENANCE_DATE_STR": config.get("maintenance_date_str", ""),
             "MAINTENANCE_EMAIL": config.get("maintenance_email", ""),
-            "USE_NPM_FROM_HOST": "" if config_object.dev_mode and config.get("npm_container") == Config.FALSE else "#",
+            "USE_NPM_FROM_HOST": "" if (config_object.dev_mode and
+                                        config.get("npm_container") == Config.FALSE) else "#",
+            "PREFIX": config_object.get_prefix("backend"),
+            "USE_BACKEND_NETWORK": "#" if (config_object.multi_servers or
+                                           config_object.dev_mode) else "",
+            "EXPOSE_BACKEND_PORTS": "" if (config_object.multi_servers or
+                                         config_object.dev_mode) else "#",
         }
 
     @staticmethod
