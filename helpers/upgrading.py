@@ -7,6 +7,7 @@ import sys
 from helpers.cli import CLI
 from helpers.config import Config
 
+
 def migrate_single_to_two_databases():
     """
     Check the contents of the databases. If KPI's is empty or doesn't exist
